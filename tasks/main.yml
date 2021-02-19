@@ -7,7 +7,7 @@
   tags:
   - asbrl-mariadb
 
-- name: Create MongoDB directory
+- name: Create Certificates directory
   file:
     path: /home/{{ default_user }}/{{ CONTAINER_NAME }}/certificates
     state: directory
