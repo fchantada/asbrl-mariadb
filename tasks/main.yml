@@ -1,6 +1,6 @@
 ---
 - name: Create MariaDB directory
-  file:
+  ansible.builtin.file:
     path: /home/{{ default_user }}/{{ CONTAINER_NAME }}/
     state: directory
     mode: 0644
@@ -8,7 +8,7 @@
   - asbrl-mariadb
 
 - name: Create Certificates directory
-  file:
+  ansible.builtin.file:
     path: /home/{{ default_user }}/{{ CONTAINER_NAME }}/certificates
     state: directory
     mode: 0755
@@ -16,14 +16,14 @@
   - asbrl-mariadb
 
 - name: MariaDB Data Volume
-  docker_volume:
+  community.docker.docker_volume:
     name: "{{ CONTAINER_NAME }}_data"
     state: "{{ VOLUME_STATE }}"
   tags:
   - asbrl-mariadb
 
 - name: MariaDB config file
-  template:
+  ansible.builtin.template:
     src: my.cnf.j2
     dest: /home/{{ default_user }}/{{ CONTAINER_NAME }}/my.cnf
     mode: 0644
@@ -31,7 +31,7 @@
   - asbrl-mariadb
 
 - name: Deploy MariaDB
-  docker_container:
+  community.docker.docker_container:
     name: "{{ CONTAINER_NAME }}"
     image: "{{ IMAGE }}:{{ BUILD }}"
     pull: "true"
@@ -52,5 +52,66 @@
       - /home/{{ default_user }}/{{ CONTAINER_NAME }}/my.cnf:/etc/mysql/my.cnf
       - '{{ CONTAINER_NAME }}_data:/var/lib/mysql'
       - /home/{{ default_user }}/{{ CONTAINER_NAME }}/certificates/:/etc/mysql/certificates
+  tags:
+  - asbrl-mariadb
+
+- name: Wait MariaDB become started
+  wait_for:
+    port: "{{ PORT }}"
+    delay: 10
+  tags:
+  - asbrl-mariadb
+
+- name: Create replica user
+  community.mysql.mysql_user:
+    login_host: "{{ ansible_host }}"
+    login_port: "{{ PORT }}"
+    login_user: "root"
+    login_password: "{{ ROOT_PASSWORD }}"
+    name: "{{ REPLICA_USERNAME }}"
+    host: "{{ REPLICA_USER_HOST }}"
+    password: "{{ REPLICA_PASSWORD }}"
+    priv:
+      '*.*:REPLICATION SLAVE,REPLICATION CLIENT'
+    state: present
+  when: REPLICA_ROLE == 'MASTER'
+  tags:
+  - asbrl-mariadb
+
+- name: Get File bin position
+  community.mysql.mysql_query:
+    login_host: "{{ MASTER_HOST }}"
+    login_port: "{{ MASTER_PORT }}"
+    login_user: "{{ MASTER_USERNAME }}"
+    login_password: "{{ MASTER_PASSWORD }}"
+    query: "show master status;"
+  register: master_file_pos
+  when: REPLICA_ROLE == 'SLAVE'
+  tags:
+  - asbrl-mariadb
+
+- name: Get Binary File & Position
+  ansible.builtin.set_fact:
+    MASTER_BIN_FILE: "{{ master_file_pos.query_result[0][0].File }}"
+    MASTER_BIN_POSITION: "{{ master_file_pos.query_result[0][0].Position }}"
+  when: REPLICA_ROLE == 'SLAVE'
+  tags:
+  - asbrl-mariadb
+
+- name: Set Master Host & Start Replica
+  community.mysql.mysql_query:
+    login_host: "{{ ansible_host }}"
+    login_port: "{{ PORT }}"
+    login_user: "root"
+    login_password: "{{ ROOT_PASSWORD }}"
+    query:
+    - "CHANGE MASTER TO MASTER_HOST='{{ MASTER_HOST }}',
+                        MASTER_PORT={{ MASTER_PORT }},
+                        MASTER_USER='{{ REPLICA_USERNAME }}',
+                        MASTER_PASSWORD='{{ REPLICA_PASSWORD }}',
+                        MASTER_LOG_FILE='{{ MASTER_BIN_FILE }}',
+                        MASTER_LOG_POS={{ MASTER_BIN_POSITION }};"
+    - "START SLAVE;"
+  when: REPLICA_ROLE == 'SLAVE'
   tags:
   - asbrl-mariadb
