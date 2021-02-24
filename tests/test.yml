@@ -1,0 +1,58 @@
+---
+- name: Deploy
+  hosts: localhost
+  order: sorted
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+
+  - name: Remove ./roles/ folder
+    file:
+      path: ./roles/
+      state: absent
+
+  - name: copy role locally (DEBUG)
+    copy:
+      src: ../
+      dest: ./roles/asbrl-mariadb
+      mode: '0755'
+
+  - name: Install pip packages
+    pip:
+      name : "{{ item }}"
+      state : "present"
+      executable: pip3
+    vars:
+      packages:
+      - PyMySQL
+    loop:
+      - "{{ packages }}"
+
+  tasks:
+
+  - name: Deploy MariaDB Master
+    include_role:
+      name: asbrl-mariadb
+    vars:
+      CONTAINER_NAME: "mariadb1"
+      PORT: 13306
+      ROOT_PASSWORD: "1234"
+      REPLICA_ROLE: MASTER
+      SERVER_ID: 1
+      REPLICA_USERNAME: 'replica_usr'
+      REPLICA_PASSWORD: 'replica1234'
+
+  - name: Deploy MariaDB Slave
+    include_role:
+      name: asbrl-mariadb
+    vars:
+      CONTAINER_NAME: "mariadb2"
+      PORT: 23306
+      ROOT_PASSWORD: "5678"
+      REPLICA_ROLE: SLAVE
+      SERVER_ID: 2
+      MASTER_HOST: "172.17.0.1"
+      MASTER_PORT: 13306
+      MASTER_USERNAME: "replica_usr"
+      MASTER_PASSWORD: "replica1234"
