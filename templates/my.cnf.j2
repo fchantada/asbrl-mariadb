@@ -190,8 +190,10 @@ key_buffer		= 16M
 !includedir /etc/mysql/conf.d/
 
 [mariadb]
-{% if SSL_CERT is defined and SSL_KEY is defined and SSL_CA is defined %}
+{% if SSL_CERT is defined and SSL_KEY is defined %}
 ssl_cert = /etc/mysql/certificates/{{ SSL_CERT }}
 ssl_key = /etc/mysql/certificates/{{ SSL_KEY }}
+{% endif %}
+{% if SSL_CA is defined %}
 ssl_ca = /etc/mysql/certificates/{{ SSL_CA }}
 {% endif %}
