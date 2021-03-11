@@ -1,7 +1,7 @@
 ---
 - name: Install Pip Packages
   ansible.builtin.pip:
-    name: 
+    name:
       - PyMySQL
     executable: "pip3"
     state: present
