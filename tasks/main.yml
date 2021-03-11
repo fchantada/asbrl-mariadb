@@ -1,4 +1,13 @@
 ---
+- name: Install Pip Packages
+  ansible.builtin.pip:
+    name: 
+      - PyMySQL
+    executable: "pip3"
+    state: present
+  tags:
+  - asbrl-mariadb
+
 - name: Create MariaDB directory
   ansible.builtin.file:
     path: /home/{{ default_user }}/{{ CONTAINER_NAME }}/
